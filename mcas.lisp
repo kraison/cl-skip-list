@@ -200,7 +200,7 @@
 	   ,@body))))
   
 
-
+#|
 (defun mcas-test (&key (threads 4) (size 100))
   (sb-profile:reset)
   (sb-profile:profile get-vector-addr 
@@ -241,3 +241,4 @@
       (format t "~A: V 0 = ~A~%" thread (mcas-read v 0)))
     (format t "v[0] = ~A & v[~A] = ~A~%" (svref v 0) (1- size) (svref v (1- size))))
   (sb-profile:report))
+|#
