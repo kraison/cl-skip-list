@@ -131,8 +131,8 @@ if it matches old-value, otherwise throws 'skip-list-kv-not-found-error."
 			       (cas (svref node +skip-node-value+)
 				    read-value
 				    new-value))
-		      +mcas-succeeded+
-		      +mcas-failed+)
+		      t
+		      nil)
 		  (error 'skip-list-kv-not-found-error :key key :value old-value)))
 	    (let ((read-value (skip-node-value node)))
 	      (if (funcall (skip-list-value-equal sl)
@@ -140,13 +140,11 @@ if it matches old-value, otherwise throws 'skip-list-kv-not-found-error."
 			   (cas (svref node +skip-node-value+)
 				read-value
 				new-value))
-		  +mcas-succeeded+
-		  +mcas-failed+)))))))
-	    
+		  t
+		  nil)))))))
 
 (defmethod skip-list-add ((sl skip-list) key value)
-  "Adds a new k/v pair to the skip list.  Will not overwrite existing nodes or values. 
-Use skip-list-replace-kv for that.  Be prepared to catch a 'skip-list-duplicate-error."
+  "Adds a new k/v pair to the skip list.  Will not overwrite existing nodes or values. Use skip-list-replace-kv for that.  Be prepared to catch a 'skip-list-duplicate-error."
   (let ((new-node (make-skip-node key value (random-level))))
     (multiple-value-bind (left-list right-list) (skip-list-search sl key value)
       (let ((right-node (svref right-list 0))
@@ -160,15 +158,16 @@ Use skip-list-replace-kv for that.  Be prepared to catch a 'skip-list-duplicate-
 		    (not (skip-list-duplicates-allowed? sl)))
 	       (error 'skip-list-duplicate-error :key key :value (skip-node-value left-node)))
 	      (t
-	       (with-mcas (:equality #'equal
-				     :success-action 
-				     #'(lambda () 
-					 (sb-ext:atomic-incf (skip-list-length sl))))
-		 (dotimes (i (skip-node-level new-node))
-		   (setf (svref (skip-node-forward new-node) i) (svref right-list i))
-		   (mcas-set (skip-node-forward (svref left-list i)) i
-			     (svref right-list i)
-			     new-node)))))))))
+	       (mcas-successful?
+		(with-mcas (:equality #'equal
+				      :success-action 
+				      #'(lambda () 
+					  (sb-ext:atomic-incf (skip-list-length sl))))
+		  (dotimes (i (skip-node-level new-node))
+		    (setf (svref (skip-node-forward new-node) i) (svref right-list i))
+		    (mcas-set (skip-node-forward (svref left-list i)) i
+			      (svref right-list i)
+			      new-node))))))))))
 
 (defmethod skip-list-delete ((sl skip-list) key &optional value)
   "Delete a key or k/v pair from the skip list.  If no value is specified and duplicates are
@@ -180,25 +179,26 @@ allowed, it will delete the first key it finds."
 	  (let ((old-value (skip-node-value match-node)))
 	    (if (eq nil old-value)
 		nil
-		(with-mcas (:equality #'equal 
-				      :success-action 
-				      #'(lambda () 
-					  (sb-ext:atomic-decf (skip-list-length sl))))
-		  (loop for i from 0 to (1- (skip-node-level match-node)) do
-		       (let ((next-node (mcas-read (skip-node-forward match-node) i)))
-			 (if (and next-node
-				  (funcall (skip-list-comparison sl) 
-					   (skip-node-key match-node) 
-					   (skip-node-key next-node)))
-			     nil
-			     (progn
-			       (mcas-set (skip-node-forward (svref left-list i)) i
-					 match-node
-					 next-node)
-			       (mcas-set (skip-node-forward match-node) i
-					 next-node
-					 (svref left-list i))))))
-		  (mcas-set match-node +skip-node-value+ old-value nil))))))))
+		(mcas-successful?
+		 (with-mcas (:equality #'equal 
+				       :success-action 
+				       #'(lambda () 
+					   (sb-ext:atomic-decf (skip-list-length sl))))
+		   (loop for i from 0 to (1- (skip-node-level match-node)) do
+			(let ((next-node (mcas-read (skip-node-forward match-node) i)))
+			  (if (and next-node
+				   (funcall (skip-list-comparison sl) 
+					    (skip-node-key match-node) 
+					    (skip-node-key next-node)))
+			      nil
+			      (progn
+				(mcas-set (skip-node-forward (svref left-list i)) i
+					  match-node
+					  next-node)
+				(mcas-set (skip-node-forward match-node) i
+					  next-node
+					  (svref left-list i))))))
+		   (mcas-set match-node +skip-node-value+ old-value nil)))))))))
 
 ;;; cursors, some code borrowed from Manuel Odendahl <manuel@bl0rg.net>'s skip list code
 (defclass skip-list-cursor ()
