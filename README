@@ -1,0 +1,5 @@
+Concurrent lockless skip lists for Common Lisp.
+
+Currently, "Common Lisp" means SBCL.  If other Lisps support compare-and-swap,
+let me know and I will add a macro for those Lisps.
+
