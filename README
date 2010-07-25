@@ -1,5 +1,20 @@
 Concurrent lockless skip lists for Common Lisp.
 
 Currently, "Common Lisp" means SBCL.  If other Lisps support compare-and-swap,
-let me know and I will add a macro for those Lisps.
+let me know and I will add a macro for those Lisps.  There is also a need to
+sort update locations based on some global order, in this case the pointer
+addresses.  SBCL allows that via 
+(logandc2 (sb-kernel:get-lisp-obj-address vector) sb-vm:lowtag-mask))
+combined with sb-sys:with-pinned-objects to avoid a GC moving things around.
+Do other Lisps have similar facilities?
 
+Also, read and write barriers seem to be necessary for some architectures.  I 
+have placed comments in the code to indicate where these should go;  I am still
+researching how best to introduce those barriers in CL.
+
+TODO
+1. Improve performance by reusing CCAS descriptors during the first phase of an MCAS
+2. Add search fingers
+2. Add skip list merges
+3. Add splitting
+4. Add memory barriers where necessary
