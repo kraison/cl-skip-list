@@ -1,5 +1,20 @@
 (in-package :cl-skip-list)
 
+(define-condition skip-list-duplicate-error (error)
+  ((key :initarg :key)
+   (value :initarg :value))
+  (:report (lambda (error stream)
+	     (with-slots (key value) error
+	       (format stream "Skip list already has node with key ~A and value ~A." key value)))))
+
+(define-condition skip-list-kv-not-found-error (error)
+  ((key :initarg :key)
+   (value :initarg :value))
+  (:report (lambda (error stream)
+	     (with-slots (key value) error
+	       (format stream "Could not find node with key ~A and value ~A in skip-list." 
+		       key value)))))
+
 (defconstant +max-level+ (the fixnum 32)
   "Maximum level of skip-list, should be enough for 2^32 elements.")
 
