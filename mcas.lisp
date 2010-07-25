@@ -1,5 +1,19 @@
 (in-package #:cl-skip-list)
 
+(define-condition transaction-error (error)
+  ((instance :initarg :instance)
+   (reason :initarg :reason))
+  (:report (lambda (error stream)
+	     (with-slots (instance reason) error
+	       (format stream "Transaction failed for ~a because of ~a." instance reason)))))
+
+(define-condition mcas-error (error)
+  ((instance :initarg :instance)
+   (reason :initarg :reason))
+  (:report (lambda (error stream)
+	     (with-slots (instance reason) error
+	       (format stream "MCAS failed for ~a because ~a." instance reason)))))
+
 ;; Make compare-and-swap shorter to call
 (defmacro cas (place old new)
   `(sb-ext:compare-and-swap ,place ,old ,new))
@@ -141,7 +155,9 @@
 	(push (make-safe-update :vector vector :index index :old old :new new) 
 	      (mcas-updates *mcas*))
 	(incf (mcas-count *mcas*)))
-      (error "MCAS-SET must be called within the body of with-mcas")))
+      (error 'mcas-error 
+	     :instance *mcas* 
+	     :reason "MCAS-SET must be called within the body of with-mcas.  *MCAS* not bound!")))
 
 (defun reset-mcas (mcas)
   (setf (mcas-status mcas)            +mcas-undecided+
@@ -186,7 +202,7 @@
 	   (if (eq +mcas-succeeded+ (mcas-status *mcas*))
 	       (dolist (func (reverse (mcas-success-actions *mcas*)))
 		 (funcall func))
-	       (error 'transaction-error :instance *mcas* :reason "Unknown")))
+	       (error 'transaction-error :instance *mcas* :reason "retries exhausted.")))
 	 (mcas-status *mcas*)))))
 
 (defmacro with-recursive-mcas (lambda-list &body body)
