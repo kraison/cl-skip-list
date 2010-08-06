@@ -10,11 +10,13 @@ Do other Lisps have similar facilities?
 
 Also, read and write barriers seem to be necessary for some architectures.  I 
 have placed comments in the code to indicate where these should go;  I am still
-researching how best to introduce those barriers in CL.
+researching how best to introduce those barriers in CL.*
+
+* SBCL 1.0.42 will have barriers thanks to Alastair Bridgewater! 
 
 TODO
 1. Improve performance by reusing CCAS descriptors during the first phase of an MCAS
 2. Add search fingers
 2. Add skip list merges
 3. Add splitting
-4. Add memory barriers where necessary
+4. Add memory barriers where necessary (awaiting SBCL 1.0.42, where barriers are finally exposed!)
