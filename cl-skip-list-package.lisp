@@ -20,4 +20,8 @@
    #:map-skip-list
    #:map-skip-list-values
    #:skip-list-fetch-all
+   #:skip-list-length
+
+   #:make-skip-pq
+   #:delete-min
    ))

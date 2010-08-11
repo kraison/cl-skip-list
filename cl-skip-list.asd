@@ -17,4 +17,5 @@
 	       (:file "gettimeofday" :depends-on ("cl-skip-list-package"))
 	       (:file "constants" :depends-on ("cl-skip-list-package"))
 	       (:file "mcas" :depends-on ("utilities" "constants" "gettimeofday"))
-	       (:file "skip-list" :depends-on ("mcas" "random"))))
+	       (:file "skip-list" :depends-on ("mcas" "random"))
+	       (:file "skip-pq" :depends-on ("skip-list"))))

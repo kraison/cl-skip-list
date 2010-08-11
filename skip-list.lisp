@@ -37,9 +37,9 @@ L1: 50%, L2: 25%, L3: 12.5%, ..."
 (defmacro skip-node-key (node)
   `(svref (the simple-vector ,node) +skip-node-key+))
 (defmacro skip-node-value (node)
-  `(mcas-read (the simple-vector ,node) +skip-node-value+))
+  `(svref (the simple-vector ,node) +skip-node-value+))
 (defmacro skip-node-forward (node)
-  `(mcas-read (the simple-vector ,node) +skip-node-forward+))
+  `(svref (the simple-vector ,node) +skip-node-forward+))
 (defmacro skip-node-level (node)
   `(svref (the simple-vector ,node) +skip-node-level+))
 
@@ -52,7 +52,7 @@ L1: 50%, L2: 25%, L3: 12.5%, ..."
     node))
 
 (defun make-head (&key initial-element)
-  (make-skip-node :header nil +max-level+ :initial-element initial-element))
+  (make-skip-node :head nil +max-level+ :initial-element initial-element))
 
 (defstruct (skip-list
 	     (:predicate skip-list?)
@@ -62,6 +62,7 @@ L1: 50%, L2: 25%, L3: 12.5%, ..."
   (value-equal #'equal)
   (comparison #'less-than)
   (duplicates-allowed? nil)
+  (node-fn #'make-skip-node)
   (length 0 :type (UNSIGNED-BYTE 64)))
 
 (defun print-skip-list (sl stream depth)
@@ -78,16 +79,16 @@ L1: 50%, L2: 25%, L3: 12.5%, ..."
       (loop for level from (1- (skip-node-level start-node)) downto 0 do
 	   (loop
 	      (setq y (mcas-read (skip-node-forward x) level))
-	      (cond ((or (null y)
-			 (funcall (skip-list-comparison sl) key (skip-node-key y)))
-		     (return))
-		    ((and value 
-			  (funcall (skip-list-key-equal sl) key (skip-node-key y))
-			  (funcall (skip-list-value-equal sl) value (skip-node-value y)))
-		     (return))
-		    ((and (null value) (funcall (skip-list-key-equal sl) key (skip-node-key y)))
-		     (return))
-		    (t (setq x y))))
+	      (if (or (null y)
+		      (funcall (skip-list-comparison sl) key (skip-node-key y))
+		      (and value 
+			   (funcall (skip-list-key-equal sl) key (skip-node-key y))
+			   (funcall (skip-list-value-equal sl) 
+				    value (mcas-read y +skip-node-value+)))
+		      (and (null value) 
+			   (funcall (skip-list-key-equal sl) key (skip-node-key y))))
+		  (return)
+		  (setq x y)))
 	   (setf (svref left-list  level) x
 		 (svref right-list level) y))
       (values left-list right-list))))
@@ -98,21 +99,21 @@ L1: 50%, L2: 25%, L3: 12.5%, ..."
 (defun node-forward (node)
   (declare (type (or null simple-vector) node))
   (if node
-      (svref (skip-node-forward node) 0)
+      (mcas-read (skip-node-forward node) 0)
       nil))
 
 (defmethod skip-list-to-list ((sl skip-list))
   (let ((node (skip-list-head sl)))
     (loop for next = (node-forward node) then (node-forward next)
 	  while next
-	  collect (list (skip-node-key next) (skip-node-value next)))))
+	  collect (list (skip-node-key next) (mcas-read next +skip-node-value+)))))
 
 (defmethod skip-list-lookup ((sl skip-list) key &optional value)
   (multiple-value-bind (left-list right-list) (skip-list-search sl key value)
     (declare (ignore left-list))
     (if (and (svref right-list 0) 
 	     (funcall (skip-list-key-equal sl) key (skip-node-key (svref right-list 0))))
-	(skip-node-value (svref right-list 0))
+	(mcas-read (svref right-list 0) +skip-node-value+)
 	nil)))
 
 (defmethod skip-list-replace-kv ((sl skip-list) key new-value &optional old-value)
@@ -124,7 +125,7 @@ if it matches old-value, otherwise throws 'skip-list-kv-not-found-error."
       (when (and node
 		 (funcall (skip-list-key-equal sl) key (skip-node-key node)))
 	(if old-value
-	    (let ((read-value (skip-node-value node)))
+	    (let ((read-value (mcas-read node +skip-node-value+)))
 	      (if (funcall (skip-list-value-equal sl) old-value read-value)
 		  (if (funcall (skip-list-value-equal sl)
 			       read-value
@@ -134,7 +135,7 @@ if it matches old-value, otherwise throws 'skip-list-kv-not-found-error."
 		      t
 		      nil)
 		  (error 'skip-list-kv-not-found-error :key key :value old-value)))
-	    (let ((read-value (skip-node-value node)))
+	    (let ((read-value (mcas-read node +skip-node-value+)))
 	      (if (funcall (skip-list-value-equal sl)
 			   read-value
 			   (cas (svref node +skip-node-value+)
@@ -145,26 +146,27 @@ if it matches old-value, otherwise throws 'skip-list-kv-not-found-error."
 
 (defmethod skip-list-add ((sl skip-list) key value)
   "Adds a new k/v pair to the skip list.  Will not overwrite existing nodes or values. Use skip-list-replace-kv for that.  Be prepared to catch a 'skip-list-duplicate-error."
-  (let ((new-node (make-skip-node key value (random-level))))
-    (multiple-value-bind (left-list right-list) (skip-list-search sl key value)
-      (let ((right-node (svref right-list 0))
-	    (left-node (svref left-list 0)))
-	(cond ((and right-node
-		    (funcall (skip-list-key-equal sl) key (skip-node-key right-node))
-		    (not (skip-list-duplicates-allowed? sl)))
-	       (error 'skip-list-duplicate-error :key key :value (skip-node-value right-node)))
-	      ((and left-node 
-		    (funcall (skip-list-key-equal sl) key (skip-node-key left-node))
-		    (not (skip-list-duplicates-allowed? sl)))
-	       (error 'skip-list-duplicate-error :key key :value (skip-node-value left-node)))
-	      (t
+  (multiple-value-bind (left-list right-list) (skip-list-search sl key value)
+    (let ((right-node (svref right-list 0))
+	  (left-node (svref left-list 0)))
+      (cond ((and right-node
+		  (funcall (skip-list-key-equal sl) key (skip-node-key right-node))
+		  (not (skip-list-duplicates-allowed? sl)))
+	     (error 'skip-list-duplicate-error :key key :value (skip-node-value right-node)))
+	    ((and left-node 
+		  (funcall (skip-list-key-equal sl) key (skip-node-key left-node))
+		  (not (skip-list-duplicates-allowed? sl)))
+	     (error 'skip-list-duplicate-error :key key :value (skip-node-value left-node)))
+	    (t
+	     (let ((new-node (funcall (skip-list-node-fn sl) key value (random-level))))
 	       (mcas-successful?
 		(with-mcas (:equality #'equal
 				      :success-action 
 				      #'(lambda () 
 					  (sb-ext:atomic-incf (skip-list-length sl))))
 		  (dotimes (i (skip-node-level new-node))
-		    (setf (svref (skip-node-forward new-node) i) (svref right-list i))
+		    (setf (svref (skip-node-forward new-node) i) 
+			  (svref right-list i))
 		    (mcas-set (skip-node-forward (svref left-list i)) i
 			      (svref right-list i)
 			      new-node))))))))))
@@ -174,31 +176,32 @@ if it matches old-value, otherwise throws 'skip-list-kv-not-found-error."
 allowed, it will delete the first key it finds."
   (multiple-value-bind (left-list right-list) (skip-list-search sl key value)
     (let ((match-node (svref right-list 0)))
-      (if (or (null match-node) (not (equal (skip-node-key match-node) key)))
-	  nil
-	  (let ((old-value (skip-node-value match-node)))
-	    (if (eq nil old-value)
-		nil
-		(mcas-successful?
-		 (with-mcas (:equality #'equal 
-				       :success-action 
-				       #'(lambda () 
-					   (sb-ext:atomic-decf (skip-list-length sl))))
-		   (loop for i from 0 to (1- (skip-node-level match-node)) do
-			(let ((next-node (mcas-read (skip-node-forward match-node) i)))
-			  (if (and next-node
-				   (funcall (skip-list-comparison sl) 
-					    (skip-node-key match-node) 
-					    (skip-node-key next-node)))
-			      nil
-			      (progn
-				(mcas-set (skip-node-forward (svref left-list i)) i
-					  match-node
-					  next-node)
-				(mcas-set (skip-node-forward match-node) i
-					  next-node
-					  (svref left-list i))))))
-		   (mcas-set match-node +skip-node-value+ old-value nil)))))))))
+      (cond ((null match-node)
+	     nil)
+	    ((not (funcall (skip-list-key-equal sl) (skip-node-key match-node) key))
+	     nil)
+	    (t
+	     (let ((old-value (mcas-read match-node +skip-node-value+)))
+	       (mcas-successful?
+		(with-mcas (:equality #'equal 
+				      :success-action 
+				      #'(lambda () 
+					  (sb-ext:atomic-decf (skip-list-length sl))))
+		  (loop for i from 0 to (1- (skip-node-level match-node)) do
+		       (let ((next-node (mcas-read (skip-node-forward match-node) i)))
+			 (if (and next-node
+				  (funcall (skip-list-comparison sl) 
+					   (skip-node-key next-node)
+					   (skip-node-key match-node))) 
+			     nil
+			     (progn
+			       (mcas-set (skip-node-forward (svref left-list i)) i
+					 match-node
+					 next-node)
+			       (mcas-set (skip-node-forward match-node) i
+					 next-node
+					 (svref left-list i))))))
+		  (mcas-set match-node +skip-node-value+ old-value nil)))))))))
 
 ;;; cursors, some code borrowed from Manuel Odendahl <manuel@bl0rg.net>'s skip list code
 (defclass skip-list-cursor ()
@@ -209,7 +212,7 @@ allowed, it will delete the first key it finds."
   (with-slots (node) slc
     (if node
 	(let ((result (list (skip-node-key node)
-			    (skip-node-value node))))
+			    (mcas-read node +skip-node-value+))))
 	  (setf node (node-forward node))
 	  result)
 	eoc)))
@@ -293,15 +296,25 @@ allowed, it will delete the first key it finds."
 	    (push (second node) result))
 	  (nreverse result))
 	nil)))
-      
+
 (defun sl-test ()
   (let ((sl (make-skip-list :duplicates-allowed? t)))
-    (dotimes (i 1000)
-      (skip-list-add sl i (code-char i)))
-    (format t "GOT: 0 = ~A~%" (skip-list-lookup sl 0))
+    (dotimes (j 10)
+      (dotimes (i 10)
+	(skip-list-add sl i (code-char i)))
+      )
+;    (format t "GOT: 0 = ~A~%" (skip-list-lookup sl 0))
     (map-skip-list #'(lambda (k v) (format t "~A: ~A~%" k v)) sl)
-    (let ((c (skip-list-range-cursor sl 33 126)))
-      (do ((i (sl-cursor-next c) (sl-cursor-next c)))
-	  ((null i))
-	(format t "~A~%" i)))
-    (skip-list-to-list sl)))
+;    (let ((c (skip-list-range-cursor sl 33 126)))
+;      (do ((i (sl-cursor-next c) (sl-cursor-next c)))
+;	  ((null i))
+;	(format t "~A~%" i)))
+    (format t "~A~%" (skip-list-to-list sl))
+    (format t "~A~%" sl)
+    (format t "lookup 5: ~A~%" (skip-list-lookup sl 5))
+    (dotimes (i 10)
+      (dotimes (j 10)
+	(format t "Deleting ~A~%" i)
+	(skip-list-delete sl i)
+	(format t "~A~%" (skip-list-to-list sl))
+	(format t "~A~%" sl)))))
