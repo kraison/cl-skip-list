@@ -103,6 +103,7 @@ allowed, it will delete the first key it finds."
 		(setq x y))))
       nil)))
 
+#|
 (defun pq-test ()
   (let ((sl (make-skip-pq)))
     (dotimes (j 4)
@@ -122,3 +123,4 @@ allowed, it will delete the first key it finds."
 	(format t "~A~%" sl)))))
   
 ;    (skip-list-to-list sl)))
+|#

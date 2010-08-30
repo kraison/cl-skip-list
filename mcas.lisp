@@ -49,14 +49,15 @@
   (timestamp (gettimeofday)))
 
 (defun ccas-help (cd)
-  ;; FIXME: add read barrier?
-  (if (eq (svref (cd-control-vector cd) (cd-control-index cd)) +mcas-undecided+)
-      (cas (svref (cd-vector cd) (cd-index cd)) cd (cd-new cd))
-      (cas (svref (cd-vector cd) (cd-index cd)) cd (cd-old cd))))
+  (sb-thread:barrier (:read)
+    (if (eq (svref (cd-control-vector cd) (cd-control-index cd)) +mcas-undecided+)
+	(cas (svref (cd-vector cd) (cd-index cd)) cd (cd-new cd))
+	(cas (svref (cd-vector cd) (cd-index cd)) cd (cd-old cd)))))
 
 (defun ccas-read (vector index)
-  ;; FIXME: add read barrier?
-  (let ((r (svref vector index)))
+  (let ((r nil))
+    (sb-thread:barrier (:read)
+      (setq r (svref vector index)))
     (if (ccas-descriptor? r)
 	(progn
 	  (ccas-help r)
@@ -74,7 +75,9 @@
 				  :new new
 				  :equality equality)))
     ;; FIXME: add read barrier?
-    (let ((r (cas (svref vector index) old cd)))
+    (let ((r nil))
+      (sb-thread:barrier (:read)
+	(setq r (cas (svref vector index) old cd)))
       (while (not (funcall equality r old))
 	(if (not (ccas-descriptor? r))
 	    (return-from ccas r)
@@ -111,26 +114,27 @@
 		       (mcas-help r))))))) 
        (setq state +mcas-succeeded+)
      decision-point
-       ;; FIXME: Add write barrier needed for non-x86 (Alpha / Sparc)?
-       (cas (svref md 1) +mcas-undecided+ state)
-       ;; FIXME: add write barrier needed for non-x86 (Alpha / Sparc)?
-       (cond ((eq (mcas-status md) +mcas-succeeded+)
-	      (dotimes (i (mcas-count md))
-		(let ((update (elt (mcas-updates md) i)))
-		  (cas (svref (update-vector update) (update-index update)) 
-		       md 
-		       (update-new update)))))
-	     ((eq (mcas-status md) +mcas-failed+)
-	      (dotimes (i (mcas-count md))
-		(let ((update (elt (mcas-updates md) i)))
-		  (cas (svref (update-vector update) (update-index update)) 
-		       md 
-		       (update-old update))))))))
+       (sb-thread:barrier (:write)
+	 (cas (svref md 1) +mcas-undecided+ state))
+       (sb-thread:barrier (:write)
+	 (cond ((eq (mcas-status md) +mcas-succeeded+)
+		(dotimes (i (mcas-count md))
+		  (let ((update (elt (mcas-updates md) i)))
+		    (cas (svref (update-vector update) (update-index update)) 
+			 md 
+			 (update-new update)))))
+	       ((eq (mcas-status md) +mcas-failed+)
+		(dotimes (i (mcas-count md))
+		  (let ((update (elt (mcas-updates md) i)))
+		    (cas (svref (update-vector update) (update-index update)) 
+			 md 
+			 (update-old update)))))))))
   (mcas-status md))
 
 (defun mcas-read (vector index)
-  ;; FIXME: add read barrier?
-  (let ((r (svref vector index)))
+  (let ((r nil)) 
+    (sb-thread:barrier (:read)
+      (setq r (svref vector index)))
     (if (mcas-descriptor? r)
 	(progn
 	  (mcas-help r)
