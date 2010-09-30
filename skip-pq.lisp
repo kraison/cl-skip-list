@@ -52,8 +52,11 @@
 		 (svref right-list level) y))
       (values left-list right-list))))
 
+(defmethod skip-pq-add ((sl skip-list) key value)
+  (skip-list-add sl key value))
+
 (defmethod skip-pq-delete ((sl skip-list) node)
-  "Delete a key or k/v pair from the skip list.  If no value is specified and duplicates are
+  "Delete a key or k/v pair from the skip pq.  If no value is specified and duplicates are
 allowed, it will delete the first key it finds."
   (multiple-value-bind (left-list right-list) 
       (skip-pq-search sl (skip-node-key node) (skip-node-deleted? node))

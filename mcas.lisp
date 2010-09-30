@@ -74,7 +74,6 @@
 				  :old old
 				  :new new
 				  :equality equality)))
-    ;; FIXME: add read barrier?
     (let ((r nil))
       (sb-thread:barrier (:read)
 	(setq r (cas (svref vector index) old cd)))
