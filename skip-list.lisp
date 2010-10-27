@@ -63,7 +63,9 @@ L1: 50%, L2: 25%, L3: 12.5%, ..."
   (comparison #'less-than)
   (duplicates-allowed? nil)
   (node-fn #'make-skip-node)
-  (length 0 :type (UNSIGNED-BYTE 64)))
+  (length 0 :type 
+	  #+CFFI-FEATURES:X86 (UNSIGNED-BYTE 32) 
+	  #+CFFI-FEATURES:X86-64 (UNSIGNED-BYTE 64)))
 
 (defun print-skip-list (sl stream depth)
   (declare (ignore depth))
