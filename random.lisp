@@ -142,7 +142,7 @@ works on random states for JMT's Mersenne Twister implementation."
 	  :arr (copy-seq (mt-random-state-arr state))))
 	(t
 	 ;; For anything else, error.
-	 (cerror "STATE should not have a value of ~A"))))
+	 (cerror "STATE should not have a value of ~A" state))))
 
 (setq *mt-random-state* (make-mt-random-state t))
 
