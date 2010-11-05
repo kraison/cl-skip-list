@@ -21,6 +21,9 @@
    #:map-skip-list-values
    #:skip-list-fetch-all
    #:skip-list-length
+   #:+mcas-succeeded+
+   #:+mcas-undecided+
+   #:+mcas-failed+
 
    #:make-skip-pq
    #:delete-min
