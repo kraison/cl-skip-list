@@ -26,7 +26,7 @@
 	     (:predicate ccas-descriptor?)
 	     (:conc-name cd-)
 	     :named)
-  vector-addr vector control-vector control-index index old new equality)
+  vector control-vector control-index index old new equality)
 
 (defstruct (safe-update
 	     (:type vector)
@@ -66,8 +66,7 @@
 
 (defun ccas (vector index control-vector control-index old new 
 	     &optional (equality #'equal))
-  (let ((cd (make-ccas-descriptor :vector-addr (get-vector-addr vector)
-				  :vector vector
+  (let ((cd (make-ccas-descriptor :vector vector
 				  :index index
 				  :control-vector control-vector
 				  :control-index control-index
