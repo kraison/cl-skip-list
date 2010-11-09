@@ -236,6 +236,8 @@ MT-GENRAND function for clarity."
       y)))
 
 (defun mt-random (n &optional state)
+  "Generate a random number.  WARNING: setting state here is not thread safe;  
+*mt-random-state* will be set without any regard for what others are doing with it!"
   (assert (plusp n))
   (when state
     (assert (mt-random-state-p state))

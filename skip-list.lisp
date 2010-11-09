@@ -266,10 +266,14 @@ allowed, it will delete the first key it finds."
   (multiple-value-bind (left-list right-list) (skip-list-search sl start)
     (let ((right-node (svref right-list 0))
 	  (left-node (svref left-list 0)))
-      (cond ((and left-node (funcall (skip-list-key-equal sl) start (skip-node-key left-node)))
+      (cond ((and left-node (funcall (skip-list-comparison sl) 
+				     start 
+				     (skip-node-key left-node)))
 	     (make-instance 'skip-list-range-cursor 
 			    :node left-node :end end :skip-list sl))
-	    ((and right-node (funcall (skip-list-key-equal sl) start (skip-node-key right-node)))
+	    ((and right-node (funcall (skip-list-comparison sl) 
+				      start 
+				      (skip-node-key right-node)))
 	     (make-instance 'skip-list-range-cursor 
 			    :node right-node :end end :skip-list sl))))))
 
