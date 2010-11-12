@@ -5,14 +5,16 @@
    (value :initarg :value))
   (:report (lambda (error stream)
 	     (with-slots (key value) error
-	       (format stream "Skip list already has node with key ~A and value ~A." key value)))))
+	       (format stream "Skip list already has node with key ~A and value ~A." 
+		       key value)))))
 
 (define-condition skip-list-kv-not-found-error (error)
   ((key :initarg :key)
    (value :initarg :value))
   (:report (lambda (error stream)
 	     (with-slots (key value) error
-	       (format stream "Could not find node with key ~A and value ~A in skip-list." 
+	       (format stream 
+		       "Could not find node with key ~A and value ~A in skip-list." 
 		       key value)))))
 
 (defconstant +max-level+ (the fixnum 32)
@@ -237,18 +239,20 @@ allowed, it will delete the first key it finds."
 	eoc
 	(first result))))
 
-(defmethod skip-list-cursor ((sl skip-list) &key cursor (class 'skip-list-cursor))
+(defmethod skip-list-cursor ((sl skip-list) &key cursor 
+			     (cursor-class 'skip-list-cursor))
   (if cursor
       (progn (setf (skip-list-cursor-node cursor)
 		   (node-forward (skip-list-head sl)))
 	     cursor)
-     (make-instance class :node (node-forward (skip-list-head sl)) :skip-list sl)))
+      (make-instance cursor-class 
+		     :node (node-forward (skip-list-head sl)) :skip-list sl)))
 
 (defmethod skip-list-values-cursor ((sl skip-list))
-  (skip-list-cursor sl :class 'skip-list-value-cursor))
+  (skip-list-cursor sl :cursor-class 'skip-list-value-cursor))
 
 (defmethod skip-list-keys-cursor ((sl skip-list))
-  (skip-list-cursor sl :class 'skip-list-key-cursor))
+  (skip-list-cursor sl :cursor-class 'skip-list-key-cursor))
 
 (defclass skip-list-range-cursor (skip-list-cursor)
   ((end :initarg :end :reader slrc-end)))
