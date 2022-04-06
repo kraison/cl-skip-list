@@ -66,6 +66,7 @@ L1: 50%, L2: 25%, L3: 12.5%, ..."
   (duplicates-allowed? nil)
   (node-fn #'make-skip-node)
   (length 0 :type
+          #+ARM64 (UNSIGNED-BYTE 64)
 	  #+CFFI-FEATURES:X86 (UNSIGNED-BYTE 32)
 	  #+CFFI-FEATURES:X86-64 (UNSIGNED-BYTE 64)))
 
